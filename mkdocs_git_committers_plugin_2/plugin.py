@@ -46,6 +46,7 @@ class GitCommittersPlugin(BasePlugin):
         self.githuburl = "https://api.github.com"
         self.gitlaburl = "https://gitlab.com/api/v4"
         self.gitlabauthors_cache = dict()
+        self.should_save_cache = False
 
     def on_config(self, config):
         self.enabled = self.config['enabled']
@@ -267,8 +268,10 @@ class GitCommittersPlugin(BasePlugin):
         else:
             LOG.info("git-committers: fetching submodule info for " + path + " from repository " + submodule_repo + " with path " + path_in_submodule)
             authors = self.get_contributors_to_file(path_in_submodule, submodule_repo=submodule_repo)
-        
-        self.cache_page_authors[path] = {'last_commit_date': last_commit_date, 'authors': authors}
+
+        if path not in self.cache_page_authors or self.cache_page_authors[path] != {'last_commit_date': last_commit_date, 'authors': authors}:
+            self.should_save_cache = True
+            self.cache_page_authors[path] = {'last_commit_date': last_commit_date, 'authors': authors}
 
         return authors, last_commit_date
 
@@ -296,6 +299,8 @@ class GitCommittersPlugin(BasePlugin):
         return context
 
     def on_post_build(self, config):
+        if not self.should_save_cache:
+            return
         LOG.info("git-committers: saving page authors cache file")
         json_data = json.dumps({'cache_date': datetime.now().strftime("%Y-%m-%d"), 'page_authors': self.cache_page_authors})
         os.makedirs(self.config['cache_dir'], exist_ok=True)
